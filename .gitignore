@@ -3,6 +3,7 @@ __pycache__/
 *.pyo
 *.pyd
 .runtime/
+demo-page3/
 out/
 out2/
 out-test/
