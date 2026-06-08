@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HackBar Split View</title>
+  <style>
+    :root {
+      --bg: #0e1116;
+      --panel: #f5f7fb;
+      --panel-border: #d8deea;
+      --text: #1a2333;
+      --muted: #6c7689;
+      --accent: #126bff;
+      --accent-soft: #dce9ff;
+      --danger: #d63c3c;
+      --topbar: #121721;
+      --topbar-border: #232a36;
+      --iframe-bg: #07090d;
+      --chip: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    .app {
+      display: grid;
+      grid-template-rows: 58vh 42vh;
+      height: 100vh;
+    }
+
+    .preview {
+      position: relative;
+      background: linear-gradient(180deg, #121722 0%, #07090d 100%);
+      border-bottom: 1px solid #202735;
+      overflow: hidden;
+    }
+
+    .frame-wrap {
+      position: absolute;
+      inset: 0;
+      background: var(--iframe-bg);
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #fff;
+    }
+
+    .hackbar {
+      min-height: 0;
+      display: block;
+      background: #eef1f5;
+    }
+
+    .hackbar-frame {
+      min-height: 0;
+      background: #fff;
+      border: 0;
+    }
+
+    .hackbar-fallback {
+      display: none;
+      margin: 14px;
+      padding: 12px 14px;
+      border: 1px solid #f0b27a;
+      border-radius: 10px;
+      background: #fff7ed;
+      color: #9a3412;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 1100px) {
+      .app {
+        grid-template-rows: 50vh 50vh;
+      }
+
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="preview">
+      <div class="frame-wrap">
+        <iframe id="targetFrame" src="__TARGET_URL__" title="target website"></iframe>
+      </div>
+    </section>
+
+    <section class="hackbar">
+      <iframe
+        id="hackbarFrame"
+        class="hackbar-frame"
+        title="HackBar panel"
+      ></iframe>
+      <div id="hackbarFallback" class="hackbar-fallback">HackBar panel failed to load. Open this page via local HTTP instead of file://.</div>
+    </section>
+  </div>
+
+  <script>
+    const targetFrame = document.getElementById("targetFrame");
+    const hackbarFrame = document.getElementById("hackbarFrame");
+    const hackbarFallback = document.getElementById("hackbarFallback");
+    let currentRequest = {
+      method: "__REQUEST_METHOD__",
+      url: "__TARGET_URL__",
+      body: {
+        content: "__BODY_CONTENT__",
+        enctype: "application/x-www-form-urlencoded"
+      },
+      headers: __HEADERS_JSON__,
+      followRedirect: false
+    };
+
+    function loadFrame(url) {
+      targetFrame.src = url;
+    }
+
+    function submitPostToFrame(request) {
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = request.url;
+      form.target = "targetFrame";
+      form.style.display = "none";
+
+      const params = new URLSearchParams(request.body?.content || "");
+      for (const [key, value] of params.entries()) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+      }
+
+      document.body.appendChild(form);
+      targetFrame.name = "targetFrame";
+      form.submit();
+      form.remove();
+    }
+
+    function applyHackbarRequest(request, action) {
+      if (!request || !request.url) {
+        return;
+      }
+
+      currentRequest = {
+        ...currentRequest,
+        ...request
+      };
+
+      if (action === "execute" && String(request.method).toUpperCase() === "POST") {
+        submitPostToFrame(currentRequest);
+        return;
+      }
+
+      loadFrame(currentRequest.url);
+    }
+
+    const hackbarHttpUrl = "./HackBar-chrome/mock-main.html";
+    const hackbarSrc = hackbarHttpUrl;
+
+    hackbarFrame.addEventListener("load", () => {
+      hackbarFallback.style.display = "none";
+      try {
+        hackbarFrame.contentWindow.postMessage({
+          source: "split-view-parent",
+          type: "sync-request",
+          data: currentRequest
+        }, "*");
+      } catch (_) {}
+    });
+
+    hackbarFrame.addEventListener("error", () => {
+      hackbarFallback.style.display = "block";
+    });
+
+    hackbarFrame.src = hackbarSrc;
+
+    window.setTimeout(() => {
+      try {
+        const loaded = hackbarFrame.contentWindow && hackbarFrame.contentDocument && hackbarFrame.contentDocument.body;
+        if (!loaded || hackbarFrame.contentDocument.body.children.length === 0) {
+          hackbarFallback.style.display = "block";
+        }
+      } catch (_) {
+        hackbarFallback.style.display = "block";
+      }
+    }, 1500);
+
+    window.addEventListener("message", (event) => {
+      if (event.source !== hackbarFrame.contentWindow) {
+        return;
+      }
+
+      const message = event.data;
+      if (!message || message.source !== "hackbar-mock") {
+        return;
+      }
+
+      if (message.type === "load" || message.type === "execute") {
+        applyHackbarRequest(message.data, message.type);
+      }
+    });
+  </script>
+</body>
+</html>

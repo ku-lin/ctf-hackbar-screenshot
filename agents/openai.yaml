@@ -1,0 +1,4 @@
+interface:
+  display_name: "CTF HackBar Screenshot"
+  short_description: "Generate HackBar-style CTF web screenshots."
+  default_prompt: "Use $ctf-hackbar-screenshot to turn this raw HTTP request packet into a HackBar-style split-view screenshot for a CTF web writeup."

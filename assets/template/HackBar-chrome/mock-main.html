@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HackBar Mock Panel</title>
+    <link rel="stylesheet" crossorigin href="./assets/main.css">
+    <style>
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #fff;
+        font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      }
+
+      body {
+        position: relative;
+        display: block;
+        padding-top: 38px;
+      }
+
+      .edge-devtools-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: stretch;
+        justify-content: space-between;
+        min-height: 0;
+        height: 38px;
+        background: linear-gradient(180deg, #fafafa 0%, #f1f3f4 100%);
+        border-bottom: 1px solid #dadce0;
+        box-shadow: inset 0 1px 0 #ffffff;
+        user-select: none;
+      }
+
+      .edge-devtools-left,
+      .edge-devtools-right {
+        display: flex;
+        align-items: stretch;
+        min-width: 0;
+      }
+
+      .edge-devtools-item {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 12px;
+        font-size: 12px;
+        color: #3c4043;
+        white-space: nowrap;
+      }
+
+      .edge-devtools-item.dim {
+        color: #5f6368;
+      }
+
+      .edge-devtools-item.active-tab {
+        margin-top: 2px;
+        padding: 0 14px;
+        background: #ffffff;
+        color: #1a73e8;
+        border: 1px solid #dadce0;
+        border-bottom-color: #ffffff;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        box-shadow: inset 0 1px 0 #ffffff;
+      }
+
+      .edge-devtools-item.active-tab::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -1px;
+        height: 1px;
+        background: #ffffff;
+      }
+
+      .edge-devtools-icon {
+        width: 14px;
+        height: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #6a6a6a;
+        flex: 0 0 auto;
+      }
+
+      .edge-devtools-icon svg {
+        width: 14px;
+        height: 14px;
+        display: block;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .edge-devtools-hackbar-icon {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        background: #202124;
+        color: #ffffff;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1;
+      }
+
+      .edge-devtools-close {
+        margin-left: 3px;
+        color: #6d6d6d;
+        font-size: 13px;
+      }
+
+      .edge-devtools-plus {
+        padding: 0 10px 0 8px;
+        font-size: 18px;
+        color: #5f6368;
+      }
+
+      .edge-devtools-spacer {
+        width: 1px;
+        margin: 8px 2px;
+        background: #e0e0e0;
+      }
+
+      body > #app {
+        height: calc(100% - 38px);
+        min-height: 0;
+      }
+
+      #app .v-application {
+        padding-top: 38px;
+        box-sizing: border-box;
+      }
+
+      #app header,
+      #app .v-app-bar,
+      #app .v-toolbar {
+        top: 38px !important;
+      }
+
+      #app main,
+      #app .v-main {
+        padding-top: 38px !important;
+      }
+    </style>
+    <script>
+      (() => {
+        const storageState = {
+          customPayload: [],
+          rawModeFollowRedirect: false,
+          rawModeAutoRenderEnabled: true,
+          rawModeEnabled: false,
+          darkThemeEnabled: false
+        };
+
+        const listeners = new Set();
+        const disconnectListeners = new Set();
+        let currentRequest = {
+          method: "__REQUEST_METHOD__",
+          url: "__TARGET_URL__",
+          body: {
+            content: "__BODY_CONTENT__",
+            enctype: "application/x-www-form-urlencoded"
+          },
+          headers: __HEADERS_JSON__,
+          followRedirect: false
+        };
+
+        function emit(message) {
+          listeners.forEach((listener) => {
+            try {
+              listener(message);
+            } catch (error) {
+              console.error(error);
+            }
+          });
+        }
+
+        const connection = {
+          onMessage: {
+            addListener(listener) {
+              listeners.add(listener);
+            },
+            removeListener(listener) {
+              listeners.delete(listener);
+            }
+          },
+          onDisconnect: {
+            addListener(listener) {
+              disconnectListeners.add(listener);
+            },
+            removeListener(listener) {
+              disconnectListeners.delete(listener);
+            }
+          },
+          postMessage(message) {
+            if (!message || typeof message !== "object") {
+              return;
+            }
+
+            if (message.type === "init" || message.type === "load") {
+              try {
+                window.parent.postMessage({
+                  source: "hackbar-mock",
+                  type: "load",
+                  data: currentRequest
+                }, "*");
+              } catch (_) {}
+              emit({ type: "load", data: currentRequest });
+              return;
+            }
+
+            if (message.type === "execute") {
+              currentRequest = message.data?.request || currentRequest;
+              try {
+                window.parent.postMessage({
+                  source: "hackbar-mock",
+                  type: "execute",
+                  data: currentRequest
+                }, "*");
+              } catch (_) {}
+              emit({
+                type: "execute",
+                data: {
+                  status: 200,
+                  statusText: "OK",
+                  headers: [
+                    { name: "content-type", value: "text/html; charset=UTF-8" },
+                    { name: "x-powered-by", value: "HackBar Mock" }
+                  ],
+                  body: [
+                    "<!doctype html>",
+                    "<html>",
+                    "<head><title>HackBar Mock Response</title></head>",
+                    "<body>",
+                    "<h1>HackBar Mock Response</h1>",
+                    `<p><strong>Method:</strong> ${currentRequest.method}</p>`,
+                    `<p><strong>URL:</strong> ${currentRequest.url}</p>`,
+                    currentRequest.body?.content ? `<pre>${currentRequest.body.content.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]))}</pre>` : "",
+                    "</body>",
+                    "</html>"
+                  ].join("")
+                }
+              });
+              return;
+            }
+
+            if (message.type === "render") {
+              emit({
+                type: "execute",
+                data: message.data
+              });
+              return;
+            }
+
+            if (message.type === "test") {
+              emit({
+                type: "test",
+                data: {
+                  type: "finished",
+                  data: {
+                    status: "Mock mode",
+                    details: "Background test runner is unavailable outside the extension context."
+                  }
+                }
+              });
+            }
+          },
+          disconnect() {
+            disconnectListeners.forEach((listener) => {
+              try {
+                listener();
+              } catch (error) {
+                console.error(error);
+              }
+            });
+          }
+        };
+
+        function storageGet(defaults) {
+          if (defaults == null) {
+            return Promise.resolve({ ...storageState });
+          }
+
+          if (Array.isArray(defaults)) {
+            return Promise.resolve(
+              defaults.reduce((acc, key) => {
+                acc[key] = storageState[key];
+                return acc;
+              }, {})
+            );
+          }
+
+          if (typeof defaults === "string") {
+            return Promise.resolve({ [defaults]: storageState[defaults] });
+          }
+
+          return Promise.resolve(
+            Object.entries(defaults).reduce((acc, [key, value]) => {
+              acc[key] = key in storageState ? storageState[key] : value;
+              return acc;
+            }, {})
+          );
+        }
+
+        const chromeMock = {
+          runtime: {
+            id: "mock-hackbar-runtime",
+            connect() {
+              return connection;
+            },
+            sendMessage() {
+              return Promise.resolve();
+            },
+            getURL(path) {
+              return new URL(path, window.location.href).toString();
+            },
+            onMessage: {
+              addListener() {},
+              removeListener() {}
+            }
+          },
+          storage: {
+            local: {
+              async get(defaults) {
+                return storageGet(defaults);
+              },
+              async set(values) {
+                Object.assign(storageState, values || {});
+              },
+              async remove(keys) {
+                const list = Array.isArray(keys) ? keys : [keys];
+                list.forEach((key) => delete storageState[key]);
+              },
+              async clear() {
+                Object.keys(storageState).forEach((key) => delete storageState[key]);
+              }
+            }
+          },
+          devtools: {
+            inspectedWindow: {
+              tabId: 1
+            },
+            panels: {
+              create() {}
+            }
+          }
+        };
+
+        window.chrome = chromeMock;
+        window.browser = chromeMock;
+
+        window.addEventListener("message", (event) => {
+          const message = event.data;
+          if (!message || message.source !== "split-view-parent") {
+            return;
+          }
+
+          if (message.type === "sync-request" && message.data) {
+            currentRequest = {
+              ...currentRequest,
+              ...message.data
+            };
+            emit({ type: "load", data: currentRequest });
+          }
+        });
+      })();
+    </script>
+    <script type="module" crossorigin src="./main.js"></script>
+  </head>
+  <body>
+    <div class="edge-devtools-bar">
+      <div class="edge-devtools-left">
+        <div class="edge-devtools-item dim">
+          <span class="edge-devtools-icon" title="Select Element">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M3 2.5L6.8 11l1.4-3.2 3.3-.1L3 2.5z"></path>
+              <path d="M8.1 7.9l2.3 4.1"></path>
+            </svg>
+          </span>
+        </div>
+        <div class="edge-devtools-item dim">
+          <span class="edge-devtools-icon" title="Toggle Device Toolbar">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="3" y="2.5" width="10" height="11" rx="1.8"></rect>
+              <path d="M6.2 4.8h3.6"></path>
+              <path d="M7 11.2h2"></path>
+            </svg>
+          </span>
+        </div>
+        <div class="edge-devtools-item dim">
+          <span class="edge-devtools-icon">⌂</span>
+          <span>Welcome</span>
+        </div>
+        <div class="edge-devtools-item">&lt;/&gt; Elements</div>
+        <div class="edge-devtools-item">
+          <span class="edge-devtools-icon">◫</span>
+          <span>Console</span>
+        </div>
+        <div class="edge-devtools-item">Sources</div>
+        <div class="edge-devtools-item">Network</div>
+        <div class="edge-devtools-item">Performance</div>
+        <div class="edge-devtools-item">Memory</div>
+        <div class="edge-devtools-item">Application</div>
+        <div class="edge-devtools-spacer"></div>
+        <div class="edge-devtools-item active-tab">
+          <span class="edge-devtools-icon edge-devtools-hackbar-icon">H</span>
+          <span>HackBar</span>
+          <span class="edge-devtools-close">×</span>
+        </div>
+        <div class="edge-devtools-item edge-devtools-plus">+</div>
+      </div>
+      <div class="edge-devtools-right">
+        <div class="edge-devtools-item dim">⋯</div>
+        <div class="edge-devtools-item dim">⚙</div>
+        <div class="edge-devtools-item dim">✕</div>
+      </div>
+    </div>
+    <div id="app"></div>
+  </body>
+</html>
