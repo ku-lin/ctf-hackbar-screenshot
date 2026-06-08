@@ -2,6 +2,9 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.runtime/
 out/
 out2/
+out-test/
+sample-request.txt
 *.png

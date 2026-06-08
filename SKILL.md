@@ -5,7 +5,7 @@ description: Generate HackBar-style split-view screenshot pages for CTF and web-
 
 # CTF HackBar Screenshot
 
-Generate a reusable screenshot page bundle from a request packet, then optionally capture it with headless Edge or Chrome.
+Generate a reusable screenshot page bundle from a request packet, then capture it with a persistent headless Edge instance.
 
 ## Quick Start
 
@@ -34,7 +34,7 @@ python scripts/render_hackbar_screenshot.py `
 
 1. Prefer a raw HTTP request file when the user already has a Burp/Repeater packet.
 2. Run `scripts/render_hackbar_screenshot.py` to generate a self-contained bundle.
-3. If `--screenshot` is provided, let the script start a local HTTP server and capture the page with headless Edge or Chrome.
+3. If `--screenshot` is provided, let the script reuse a persistent local HTTP server and a persistent headless Edge instance.
 4. If the target blocks iframe embedding, keep the screenshot for the lower HackBar panel or swap the upper target to a local mirror/proxy page.
 
 ## Raw Request Format
@@ -66,7 +66,11 @@ Pass `--target-url` only when the request packet lacks a usable absolute URL or 
 - copy the bundled template from `assets/template/`
 - inject target URL, method, headers, and body into the split-view page
 - generate a local preview bundle
-- optionally launch headless Edge/Chrome and save a PNG
+- reuse a persistent local HTTP server rooted at the bundle parent directory
+- reuse a persistent headless Edge instance through the DevTools protocol
+- prewarm the HackBar runtime once before the real capture
+- wait for a DOM readiness selector instead of relying on long fixed sleep
+- save a PNG after the page is capture-ready
 
 Useful flags:
 
@@ -75,12 +79,21 @@ Useful flags:
 - `--body`: manual body fallback
 - `--output-dir`: required bundle directory
 - `--screenshot`: optional PNG output path
-- `--browser edge|chrome|auto`: choose capture browser
+- `--browser edge`: use Edge only
+- `--browser-port 9222`: persistent Edge DevTools port
 - `--window-size 1600,1200`: control screenshot dimensions
 - `--port 8765`: local HTTP port
+- `--wait-selector "body[data-capture-ready='1']"`: DOM condition for capture
+- `--delay 0.8`: short post-ready settle delay
 
 ## Assets
 
 `assets/template/` contains the portable split-view page and the bundled HackBar runtime used to render the lower panel.
+
+The split-view page supports:
+
+- draggable horizontal divider between upper target pane and lower HackBar pane
+- independent scrolling inside the real upper iframe and lower HackBar iframe
+- load/execute sync from the lower HackBar panel into the upper real page
 
 Do not rewrite these assets unless the user asks to change the visual style or panel behavior. Prefer editing the generation script or injecting new request data.
